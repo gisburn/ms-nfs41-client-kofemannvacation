@@ -64,6 +64,11 @@ int nfs41_root_create(
 
     list_init(&root->clients);
     root->use_nfspubfh = use_nfspubfh;
+    /*
+     * nfs41_root_mount_addrs() will enable NFSv4.2 features (like
+     * |OP_READ_PLUS|) after NFSv4.x minor version autonegitiation
+     */
+    root->supports_nfs42_read_plus = false;
     if (nfsvers == NFS_VERSION_AUTONEGOTIATION) {
         /*
          * Use auto negotiation, |nfs41_root_mount_addrs()| will
@@ -431,6 +436,12 @@ retry_nfs41_exchange_id:
             status = ERROR_BAD_NET_RESP;
         }
         goto out_free_rpc;
+    }
+
+    /* Enable NFS features after NFSv4.x minor version negotiation */
+    if (root->nfsminorvers >= 2) {
+        DPRINTF(0, ("nfs41_root_mount_addrs: Enabling OP_READ_PLUS\n"));
+        root->supports_nfs42_read_plus = true;
     }
 
     /* attempt to match existing clients by the exchangeid response */

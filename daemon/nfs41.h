@@ -300,6 +300,7 @@ typedef struct __nfs41_root {
     CRITICAL_SECTION lock;
     struct list_entry clients;
     bool use_nfspubfh;
+    bool supports_nfs42_read_plus;
     DWORD nfsminorvers;
     uint32_t wsize;
     uint32_t rsize;

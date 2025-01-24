@@ -805,6 +805,9 @@ bool_t nfs41_recover_stateid(
     } else if (argop->op == OP_READ) {
         nfs41_read_args *read = (nfs41_read_args*)argop->arg;
         stateid = read->stateid;
+    } else if (argop->op == OP_READ_PLUS) {
+        nfs42_read_plus_args *read_plus = (nfs42_read_plus_args *)argop->arg;
+        stateid = read_plus->stateid;
     } else if (argop->op == OP_WRITE) {
         nfs41_write_args *write = (nfs41_write_args*)argop->arg;
         stateid = write->stateid;

@@ -131,7 +131,7 @@ static bool_t xdr_settime4(
 }
 
 /* stateid4 */
-static bool_t xdr_stateid4(
+bool_t xdr_stateid4(
     XDR *xdr,
     stateid4 *si)
 {
@@ -3638,7 +3638,7 @@ static const op_table_entry g_op_table[] = {
     { NULL, NULL }, /* OP_LAYOUTSTATS = 65, */
     { NULL, NULL }, /* OP_OFFLOAD_CANCEL = 66, */
     { NULL, NULL }, /* OP_OFFLOAD_STATUS = 67, */
-    { NULL, NULL }, /* OP_READ_PLUS = 68, */
+    { encode_op_read_plus, decode_op_read_plus }, /* OP_READ_PLUS = 68, */
     { NULL, NULL }, /* OP_SEEK = 69, */
     { NULL, NULL }, /* OP_WRITE_SAME = 70, */
     { NULL, NULL }, /* OP_CLONE = 71, */
