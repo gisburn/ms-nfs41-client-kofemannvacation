@@ -2262,11 +2262,32 @@ static bool_t decode_read_res_ok(
     nfs41_read_res_ok *res)
 {
     unsigned char *data = res->data;
+    uint32_t data_len = res->data_len;
+    uint32_t count;
 
     if (!xdr_bool(xdr, &res->eof))
         return FALSE;
 
-    return xdr_bytes(xdr, (char **)&data, &res->data_len, NFS41_MAX_FILEIO_SIZE);
+    if (!xdr_u_int32_t(xdr, &count)) {
+        DPRINTF(0, ("decode_read_res_ok: decoding 'count' failed\n"));
+        return FALSE;
+    }
+
+    EASSERT(count <= data_len);
+    /*
+     * If a buggy server erroneously sends more data then we
+     * requested we'll clamp this via |__min()| to avoid an buffer
+     * overflow (but will still get an RPC error later).
+     */
+    count = __min(data_len, count);
+    if (!xdr_opaque(xdr, (char *)data, count)) {
+        DPRINTF(0, ("decode_read_res_ok_ decoding 'bytes' failed\n"));
+        return FALSE;
+    }
+
+    res->data_len = count;
+
+    return TRUE;
 }
 
 static bool_t decode_op_read(
