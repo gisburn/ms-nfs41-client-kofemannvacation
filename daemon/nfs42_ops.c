@@ -70,6 +70,7 @@ int nfs42_read_plus(
     read_plus_args.stateid = stateid;
     read_plus_args.offset = offset;
     read_plus_args.count = count;
+    read_plus_res.resok4.args_offset = offset; /* hack */
     read_plus_res.resok4.data_len = count;
     read_plus_res.resok4.data = data_out;
 

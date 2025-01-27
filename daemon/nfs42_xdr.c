@@ -65,10 +65,8 @@ static bool_t decode_read_plus_res_ok(
     XDR *xdr,
     nfs42_read_plus_res_ok *res)
 {
-    unsigned char *data = res->data;
-    int64_t data_bytesleft = res->data_len; /* must be |signed| */
-
     nfs42_read_plus_content *contents = NULL;
+    uint64_t read_data_len = 0ULL;
 
     if (!xdr_bool(xdr, &res->eof)) {
         DPRINTF(0, ("decode eof failed\n"));
@@ -94,13 +92,6 @@ static bool_t decode_read_plus_res_ok(
     uint32_t i, co;
 
     for (i = 0 ; i < res->count ; i++) {
-        if (data_bytesleft < 0) {
-            eprintf("decode_read_plus_res_ok: "
-                "i=%d, data_bytesleft(=%lld) < 0\n",
-                (int)i, (long long)data_bytesleft);
-            break;
-        }
-
         if (!xdr_u_int32_t(xdr, &co)) {
             DPRINTF(0, ("i=%d, decode co failed\n", (int)i));
             return FALSE;
@@ -109,68 +100,75 @@ static bool_t decode_read_plus_res_ok(
 
         switch(co) {
             case NFS4_CONTENT_DATA:
-//                DPRINTF(0, ("i=%d, 'NFS4_CONTENT_DATA' content\n", (int)i));
                 if (!xdr_u_hyper(xdr, &contents[i].data.offset)) {
-                    DPRINTF(0, ("i=%d, decoding 'offset' failed\n", (int)i));
+                    DPRINTF(0,
+                        ("i=%d, decoding 'offset' failed\n", (int)i));
                     return FALSE;
                 }
                 if (!xdr_u_int32_t(xdr, &contents[i].data.count)) {
-                    DPRINTF(0, ("i=%d, decoding 'count' failed\n", (int)i));
+                    DPRINTF(0,
+                        ("i=%d, decoding 'count' failed\n", (int)i));
                     return FALSE;
                 }
 
-                /* FIXME: what should we do with |data.offset| ? */
-
-                EASSERT(contents[i].data.count <= data_bytesleft);
-                /*
-                 * If a buggy server erroneously sends more data then
-                 * we requested we'll clamp this via |__min()| to
-                 * avoid an buffer overflow (but will still get an
-                 * RPC error later).
-                 */
-                contents[i].data.count = __min(data_bytesleft,
-                    contents[i].data.count);
-
-                contents[i].data.data = data;
+                contents[i].data.data = res->data +
+                    (contents[i].data.offset - res->args_offset);
                 contents[i].data.data_len = contents[i].data.count;
+
+                EASSERT(((contents[i].data.data - res->data) +
+                    contents[i].data.data_len) <= res->data_len);
                 if (!xdr_opaque(xdr,
                     (char *)contents[i].data.data,
                     contents[i].data.data_len)) {
-                    DPRINTF(0, ("i=%d, decoding 'bytes' failed\n", (int)i));
+                    DPRINTF(0,
+                        ("i=%d, decoding 'bytes' failed\n", (int)i));
                     return FALSE;
                 }
-                data += contents[i].data.count;
-                data_bytesleft -= contents[i].data.count;
+                read_data_len = __max(read_data_len,
+                    ((size_t)(contents[i].data.data - res->data) +
+                        contents[i].data.data_len));
                 break;
             case NFS4_CONTENT_HOLE:
-                DPRINTF(0, ("i=%d, 'NFS4_CONTENT_HOLE' content\n", (int)i));
+                unsigned char *hole_buff;
+                uint64_t hole_length;
+
+                DPRINTF(0,
+                    ("i=%d, 'NFS4_CONTENT_HOLE' content\n", (int)i));
                 if (!xdr_u_hyper(xdr, &contents[i].hole.offset))
                     return FALSE;
                 if (!xdr_u_hyper(xdr, &contents[i].hole.length))
                     return FALSE;
 
-                /* FIXME: what should we do with |hole.offset| ? */
+
+                hole_buff = res->data +
+                    (contents[i].hole.offset - res->args_offset);
+                hole_length = contents[i].hole.length;
 
                 /*
                  * NFSv4.2 "READ_PLUS" is required to return the
                  * whole hole even if |hole.length| is bigger than
                  * the requested size
                  */
-                (void)memset(data, 0,
-                    __min(data_bytesleft, contents[i].hole.length));
-                data += contents[i].hole.length;
-                data_bytesleft -= contents[i].hole.length;
+                if (((hole_buff - res->data) + hole_length) >
+                    res->data_len) {
+                    hole_length = res->data_len;
+                }
+
+                EASSERT(hole_length < UINT_MAX);
+                (void)memset(hole_buff, 0, (size_t)hole_length);
+
+                read_data_len = __max(read_data_len,
+                    ((hole_buff - res->data) + hole_length));
+                break;
             default:
-                DPRINTF(0, ("decode_read_plus_res_ok: unknown co=%d\n", (int)co));
+                eprintf("decode_read_plus_res_ok: unknown co=%d\n",
+                    (int)co);
                 return FALSE;
         }
-
-        EASSERT((data - res->data) <= res->data_len);
     }
 
-    EASSERT((data - res->data) < UINT_MAX);
-    res->data_len = (uint32_t)(data - res->data);
-
+    EASSERT(read_data_len < UINT_MAX);
+    res->data_len = (uint32_t)read_data_len;
     return TRUE;
 }
 

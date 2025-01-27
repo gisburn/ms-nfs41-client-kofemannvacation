@@ -761,6 +761,13 @@ typedef union __nfs42_read_plus_content {
 } nfs42_read_plus_content;
 
 typedef struct __nfs42_read_plus_res_ok {
+    /*
+     * HACK: Copy of |nfs42_read_plus_args.offset| - needed because
+     * |nfs_op_decode_proc()| only has a |nfs_resop4| argument but
+     * no |nfs_argop4| argument (yet)
+     */
+    uint64_t                args_offset;
+
     bool_t                  eof;
     uint32_t                count;
     /*
